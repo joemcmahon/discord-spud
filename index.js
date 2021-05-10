@@ -6,6 +6,8 @@ require('dotenv').config();
 const _ = require('lodash');
 const request = require('request');
 
+const newrelic = require('newrelic');
+
 var Monitor = require('icecast-monitor');
 
 // The Icecast monitor.
