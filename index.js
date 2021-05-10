@@ -1,24 +1,14 @@
+// Modelled after the Digital Ocean example.
+// Load required modules.
 const discordBotkit = require('botkit-discord');
 require('dotenv').config();
 
 const _ = require('lodash');
 const request = require('request');
 
-console.log(process.env.BOT_TOKEN);
-console.log(process.env.RADIO_USER);
-console.log(process.env.RADIO_PASSWORD);
-
-const configuration = {
-    token: process.env.BOT_TOKEN
-};
-
-// Set up the Icecast monitor.
-const sleep = (milliseconds) => {
-  return new Promise(resolve => setTimeout(resolve, milliseconds))
-}
-
 var Monitor = require('icecast-monitor');
 
+// The Icecast monitor.
 var monitor = new Monitor({
   host: 'radio.radiospiral.net',
   port: 8000,
@@ -26,11 +16,14 @@ var monitor = new Monitor({
   password: process.env.RADIO_PASSWORD,
 });
 
+// Various state variables tracking the server.
 const stopper = `I wasn't listening...`
 
+// Listener count monitor
 var numListeners = 0
 var maxListeners = 0
 
+// Track history monitor
 var previousTrack = stopper
 var currentTrack = stopper
 var testTrack = `Nol`
@@ -41,18 +34,23 @@ var histIndex = 0
 var oldMessage = ''
 var candidateMessage = ''
 
+// Track startup time
 let startTime = new Date
 function readableDate(d) {
   return d.toLocaleTimeString('en-US')
 }
 
+// Configure Icecast monitoring
 monitor.createFeed(function(err, feed) {
+
+  // Untracked errors
   if (err) throw err;
 
   // Handle wildcard events
   //feed.on('*', function(event, data, raw) {
   //  console.log(event, data, raw);
   // });
+
   // Handle listener change
   feed.on('mount.listeners', function(listeners, raw) {
     numListeners = raw;
@@ -61,33 +59,30 @@ monitor.createFeed(function(err, feed) {
     }
   });
 
-  // Handle track title change here
-
+  // Handle track title change
   feed.on('mount.title', function(title, track) {
     console.log('Now playing: ' + track);         // for debugging right now. should mean the track has changed
     testTrack = track;                            // not sure what type track is, so force it to a string
     if (currentTrack !== testTrack) {
-        //console.log(currentTrack + " is not equal to " + testTrack);    // debug, they aren't equal, so yes
-        console.log('Track change to ' + testTrack);
         previousTrack = currentTrack;               // save the no longer current track as the previous
         currentTrack = track;                       // now store the current track
-	console.log("Telling Discord about it...");
+        // Tell Discord we switched tracks
         request({
-	        url: process.env.NOW_PLAYING_WEBHOOK,
-	        method: 'POST',
-	   	    json: { content: currentTrack }
-	    }),
+          url: process.env.NOW_PLAYING_WEBHOOK,
+          method: 'POST',
+           json: { content: currentTrack }
+      }),
+        // ...or not
         function(error, response, body) {
-            if (error || response.statusCode === 200) {
-		        console.log('error: '+ error)
-	   	    	console.log('code: ' + response.statusCode)
-	     	    console.log('status: ' + response.statusText)
-	        }
-	    }
+          if (error || response.statusCode === 200) {
+            console.log('error: '+ error)
+            console.log('code: ' + response.statusCode)
+            console.log('status: ' + response.statusText)
+          }
+        }
     }
     trackHistory = _.concat(trackHistory,previousTrack);  // save previous track
     if (trackHistory.length > maxTracks) {
-	console.log("dropped one old track");
         trackHistory = _.drop(trackHistory);
     } else {
       console.log('**dupEvent ' + currentTrack + ' is equal to ' + testTrack);
@@ -96,24 +91,31 @@ monitor.createFeed(function(err, feed) {
     histIndex = numTracks;
 
     while (histIndex > 0) {
-    console.log('track history: ' + trackHistory[histIndex]); //works, backwards I think
+      console.log('track history: ' + trackHistory[histIndex]); //works, backwards I think
       histIndex = histIndex - 1;
     }
   });
 });
 
 
-// This is commonly known as the Botkit controller
+// Set up Botkit controller
+const configuration = {
+    token: process.env.BOT_TOKEN
+};
+
 const discordBot = discordBotkit(configuration);
+
+// We're probably not going to use prefixes but this might change
 const prefix = "!";
 
-// The connector supports other types as well
+// Basic bot health/connectivity check
 discordBot.hears('ping', 'direct_message', (bot, message) => {
     if (message.author.bot) return;
     // ! Do not forget to pass along the message as the first parameters
     bot.reply(message, "Poit!");
 });
 
+// Help command
 discordBot.hears('help', 'mention', (bot, message) => {
   let text = `
 I will respond to the following messages:
@@ -126,6 +128,7 @@ I am very polite as well.
   bot.reply(message, text);
 });
 
+// Listeners command
 discordBot.hears('listeners', 'mention', (bot, message) => {
   var s = 's'
   if (numListeners == 1) {
@@ -138,6 +141,7 @@ discordBot.hears('track|playing|hearing|tune|listening|music', 'mention', (bot, 
   bot.reply('Now playing: ' + currentTrack + ' (' + numListeners + ' listening)');
 });
 
+// Snark if mentioned but no recognized command
 discordBot.hears(".*", 'mention', (bot, message) => {
     snark(bot, message);
 });
@@ -159,7 +163,7 @@ function snark(bot, message) {
         ':smiling imp:',
     ];
     if (Math.random() < 0.9) {
-	let i = Math.floor(Math.random() * options.length)
+        let i = Math.floor(Math.random() * options.length)
         bot.reply(message, options[i])
     }
 }
