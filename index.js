@@ -35,10 +35,7 @@ var oldMessage = ''
 var candidateMessage = ''
 
 // Track startup time
-let startTime = new Date
-function readableDate(d) {
-  return d.toLocaleTimeString('en-US')
-}
+let startTime = new Date().toLocaleString("en-US", {timeZone: "America/Los_Angeles"})
 
 // Configure Icecast monitoring
 monitor.createFeed(function(err, feed) {
@@ -66,11 +63,12 @@ monitor.createFeed(function(err, feed) {
     if (currentTrack !== testTrack) {
         previousTrack = currentTrack;               // save the no longer current track as the previous
         currentTrack = track;                       // now store the current track
+	let now = new Date().toLocaleString("en-US", {timeZone: "America/Los_Angeles"})
         // Tell Discord we switched tracks
         request({
           url: process.env.NOW_PLAYING_WEBHOOK,
           method: 'POST',
-           json: { content: currentTrack }
+           json: { content: '['+now+'] ' + currentTrack }
       }),
         // ...or not
         function(error, response, body) {
@@ -134,11 +132,11 @@ discordBot.hears('listeners', 'mention', (bot, message) => {
   if (numListeners == 1) {
     s = ''
   }
-  bot.reply(message, numListeners + " listener" + s + "(max of " + maxListeners + "as of " + readableDate(startTime) + ")");
+  bot.reply(message, numListeners + " listener" + s + " (max of " + maxListeners + " as of " + startTime + " SL time)");
 });
 
-discordBot.hears('track|playing|hearing|tune|listening|music', 'mention', (bot, message) => {
-  bot.reply('Now playing: ' + currentTrack + ' (' + numListeners + ' listening)');
+discordBot.hears('track', 'mention', (bot, message) => {
+  bot.reply(message, 'Now playing: ' + currentTrack + ' (' + numListeners + ' listening)');
 });
 
 // Snark if mentioned but no recognized command
