@@ -39,15 +39,14 @@ invite URL, you can join without any hassle at all; you don't even have to
 set up an account.
 
 We set up the Discord, and it was clear that it was a much more friendly
-option within a coupke of hours, and it was clear we'd want to move to it
+option within a couple of hours, and it was clear we'd want to move to it
 going forward.
 
 We did want to keep all the functions we had before -- luckily Discord
 provided some of them out of the box:
 
  - The active users show up fine in the desktop client with no extra effort
-   on our part. (We probably will want to set something up for mobile users,
-   since there's no sidebar for them.)
+   on our part.
  - Easy sign-up (no special server or email dance required)
 
 This meant that the only thing we'd really need was the "now-playing"
@@ -79,8 +78,8 @@ to the same channel made it hard to scroll back and catch up.
 I was able to add a few more commands to show the listener count and show
 the current track only; I eliminated the `history` command, as the `#now-playing`
 channel does a better job. The `#now-playing` entries were also extended with
-a timestamp to make it easir to figure out what was playing at 2PM that was
-so good.
+a timestamp to make it easier to figure out things like "what was playing at 2PM that was
+so good?".
 
 # Conclusions
 
@@ -88,4 +87,3 @@ so good.
    and considerably less cognitive load for the admins and the DJs.
  - Discord's easier to work with than Slack is, so far, providing more and
    better APIs to get the data that we really want.
-
