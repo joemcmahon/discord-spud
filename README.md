@@ -22,7 +22,7 @@ accurate.
 
 # The switch to Discord
 
-The MOuntain Skies 2021 online music festival presented us with a problem:
+The Mountain Skies 2021 online music festival presented us with a problem:
 Slack does not make it easy to join. You need to have an invite to join Slack.
 Worse, the API we were using to generate auto-invites broke sometime last
 year, making it necessary to hand-invite people via email.
