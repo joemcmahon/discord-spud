@@ -16,6 +16,7 @@
     "dotenv": "^9.0.1",
     "icecast-monitor": "^1.0.2",
     "lodash": "^4.17.21",
-    "request": "^2.88.2"
+    "request": "^2.88.2",
+    "skills-validator": "./node_modules/botbuilder/skills-validator/skills-validator-1.0.0.tgz"
   }
 }
