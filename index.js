@@ -1,20 +1,14 @@
 // Modelled after the Digital Ocean example.
 // Load required modules.
 const discordBotkit = require('botkit-discord');
+const express = require('express')
 require('dotenv').config();
 
 const _ = require('lodash');
 const request = require('request');
 
-var Monitor = require('icecast-monitor');
-
-// The Icecast monitor.
-var monitor = new Monitor({
-  host: 'radio.radiospiral.net',
-  port: 8000,
-  user: process.env.RADIO_USER,
-  password: process.env.RADIO_PASSWORD,
-});
+const {logger, readLog} = require('./utils/logger')
+const app = express()
 
 // Various state variables tracking the server.
 const stopper = `I wasn't listening...`
@@ -33,15 +27,77 @@ var maxTracks = 10
 var histIndex = 0
 var oldMessage = ''
 var candidateMessage = ''
+var lastIcecastUpdate = 0
+var lastSuccessfulLogFetch = null
+var lastMonitorErrorTime = null
+var lastMonitorError = ''
+
+var webhookError = ''
+var webhookCode = 0
+var webhookStatus = ''
+
+var failing = false
+
+function localDate() {
+  return new Date().toLocaleString("en-US", {timeZone: "America/Los_Angeles"})
+}
 
 // Track startup time
-let startTime = new Date().toLocaleString("en-US", {timeZone: "America/Los_Angeles"})
+let startTime = localDate();
+
+// Set up log fetch
+const PORT = process.env.PORT || 8080;
+app.listen(PORT, () => {
+  logger.info("Spud started on port " + PORT);
+})
+
+app.get("/api/health", (request, response) => {
+  const result = {
+    'failing' : failing,
+    'webhookCode' : webhookCode,
+    'webHookError' : webhookError,
+    'webhookStatus' : webhookStatus,
+    'lastIcecastUpdate': lastIcecastUpdate,
+    'lastSuccessfulLogFetch': lastSuccessfulLogFetch,
+    'listeners': maxListeners
+  };
+  logger.info("health checked");
+  response.set('Content-Type', 'application/json')
+  return response.send(result);
+})
+
+app.get("/api/logs", (request, response) => {
+  try {
+    const result = readLog();
+    console.log(result);
+    response.set('Content-Type', 'text/plain');
+    return response.send(result);
+    lastSuccessfulLogFetch = localDate();
+  } catch(e) {
+    console.log(e);
+    return response.sendStatus(500);
+  }
+});
+
+var Monitor = require('icecast-monitor');
+
+// The Icecast monitor.
+var monitor = new Monitor({
+  host: 'radio.radiospiral.net',
+  port: 8000,
+  user: process.env.RADIO_USER,
+  password: process.env.RADIO_PASSWORD,
+});
 
 // Configure Icecast monitoring
 monitor.createFeed(function(err, feed) {
 
   // Untracked errors
-  if (err) throw err;
+  if (err) {
+    lastMonitorError = err
+    lastMonitorErrorTime = localDate();
+    failing = true
+  }
 
   // Handle wildcard events
   //feed.on('*', function(event, data, raw) {
@@ -50,20 +106,28 @@ monitor.createFeed(function(err, feed) {
 
   // Handle listener change
   feed.on('mount.listeners', function(listeners, raw) {
+    failing = false
     numListeners = raw;
     if (numListeners > maxListeners) {
       maxListeners = numListeners
+      logger.info('Max listeners now ' + maxListeners);
     }
   });
 
   // Handle track title change
   feed.on('mount.title', function(title, track) {
-    console.log('Now playing: ' + track);         // for debugging right now. should mean the track has changed
+    failing = false
+    logger.info('Now playing: ' + track);         // for debugging right now. should mean the track has changed
     testTrack = track;                            // not sure what type track is, so force it to a string
     if (currentTrack !== testTrack) {
         previousTrack = currentTrack;               // save the no longer current track as the previous
         currentTrack = track;                       // now store the current track
-	let now = new Date().toLocaleString("en-US", {timeZone: "America/Los_Angeles"})
+        logger.info("Track change: " + track);
+	      let now = localDate();
+        failing = false
+        webHookError = ''
+        webhookCode = 200
+        webhookStatus = 'OK'
         // Tell Discord we switched tracks
         request({
           url: process.env.NOW_PLAYING_WEBHOOK,
@@ -72,10 +136,14 @@ monitor.createFeed(function(err, feed) {
       }),
         // ...or not
         function(error, response, body) {
-          if (error || response.statusCode === 200) {
-            console.log('error: '+ error)
-            console.log('code: ' + response.statusCode)
-            console.log('status: ' + response.statusText)
+          if (error || response.statusCode !== 200) {
+            failing = true
+            webHookError = error
+            webhookCode = response.statusCode
+            webhookStatus = response.statusText
+            logger.error('webhook error: '+ error)
+            logger.error('code: ' + response.statusCode)
+            logger.error('status: ' + response.statusText)
           }
         }
     }
@@ -83,13 +151,13 @@ monitor.createFeed(function(err, feed) {
     if (trackHistory.length > maxTracks) {
         trackHistory = _.drop(trackHistory);
     } else {
-      console.log('**dupEvent ' + currentTrack + ' is equal to ' + testTrack);
+      logger.info('**dupEvent ' + currentTrack + ' is equal to ' + testTrack);
     }
 
     histIndex = numTracks;
 
     while (histIndex > 0) {
-      console.log('track history: ' + trackHistory[histIndex]); //works, backwards I think
+      logger.info('track history: ' + trackHistory[histIndex]); //works, backwards I think
       histIndex = histIndex - 1;
     }
   });
@@ -109,6 +177,7 @@ const prefix = "!";
 // Basic bot health/connectivity check
 discordBot.hears('ping', 'direct_message', (bot, message) => {
     if (message.author.bot) return;
+    logger.info("pinged")
     // ! Do not forget to pass along the message as the first parameters
     bot.reply(message, "Poit!");
 });
@@ -143,6 +212,7 @@ discordBot.hears('track', 'mention', (bot, message) => {
 discordBot.hears(".*", 'mention', (bot, message) => {
     snark(bot, message);
 });
+
 
 function snark(bot, message) {
     options = [

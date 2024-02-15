@@ -81,6 +81,43 @@ channel does a better job. The `#now-playing` entries were also extended with
 a timestamp to make it easier to figure out things like "what was playing at 2PM that was
 so good?".
 
+# Building and running under Docker
+
+We've moved from running services on a wildly disparate set of servers to
+having as much as possible available on a single server. This is partially to
+decrease costs, and partially to decrease complexity.
+
+To decrease the problems with deploying possibly-conflicting services on a
+single server, and to decrease deployment complexity overall, we've opted to
+containerize our services.
+
+For Spud, that means we do the following:
+
+ - We use a .env file and the Node.js `dotenv` package to make setting up the environment simpler. `.env` is in the `.gitignore` file to ensure we don't check in any tokens, etc.
+ - We have a `Dockerfile` that encapsulates the build and deployment info.
+
+## Developing and testing Spud
+
+We use `yarn` for our package namagement, so adding new packages should be
+done with `yarn add`.
+
+To run Spud in test mode just do `node index.js`. You will need to edit `.env`
+to temporarily use a different port; we should make this less error-prone in
+the future, as it's easy to forget and `docker build` with the wrong port this
+way.
+
+## Running Spud from the command line
+
+When you are ready to switch to a new version of Spud, do the following:
+
+ - Verify the port is correct in `.env`. Spud's standard port should be 8019.
+ - `docker build . -t spud:latest`
+ - `docker ps`
+ - `docker kill <old Spud instance>`
+ - `docker run --net=host spud:latest`
+ - `netstat -a|grep 8019` to verify Spud is up and listening on 8019
+ - `curl localhost:8019/api/health` to do an initial health check
+
 # Conclusions
 
  - We should have switched earlier; Discord's a much better solution for less-sophisticated users
